@@ -103,6 +103,11 @@ class RotatingFoil {
     flow.update(foil);flow.update2();
     t += dt/resolution;  //nonedimension
     force = foil.pressForce(flow.p);
+    if (t>0.5){
+      PVector force = foil.pressForce(flow.p);
+  float moment = foil.pressMoment(flow.p);
+  // 根据施加的力和力矩更新扑翼的运动状态
+  foil.react(force, moment, dt);}
     
     print("t="+nfs(t,2,3)+";  ");
     print("drag="+nfs(force.x*2/this.resolution, 2, 2)+";  ");
