@@ -45,9 +45,9 @@ void draw() {
   if(test.t>=maxT/20*6){
     count+=1;
     CT += -forces.x / resolution * 2;
-    CP += ((M*phivel/resolution)+(forces.y*vely))/ resolution * 2;
-    CL += -forces.y / resolution * 2;
-    Eta=CT/CP;
+    CP += ((M*phivel/resolution)+(forces.y*vely));
+    CL += forces.y / resolution * 2;
+    Eta=CT*2*resolution/CP;
     print("CT"+(CT/count));
   }
   //Sp = SparsePressure(test);
