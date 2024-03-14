@@ -14,7 +14,7 @@ int Num = 1;
 String Sp;
 float CT = 0, CL = 0, CP = 0,Eta=0;
 float y = 0, angle = 0;
-int resolution = 16, xLengths=32, yLengths=32, zoom = 2;//zoom:画幅放大倍数
+int resolution = 16, xLengths=16, yLengths=16, zoom = 2;//zoom:画幅放大倍数
 int picNum = 10;//图片数量
 float tCurr = 0, tStep = .005;
 int count=0;//OL新加入的变量
@@ -42,13 +42,14 @@ void draw() {
   float vely = deltaxy.y*resolution/test.dt;
   float M = test.foil.pressMomentpiv(test.flow.p, 1./4*resolution, 0);
     
-  if(test.t>=maxT/20*6){
+  if(test.t>=maxT/20*0){
     count+=1;
     CT += -forces.x / resolution * 2;
-    CP += ((M*phivel/resolution)+(forces.y*vely));
+    CP += ((M*phivel/resolution)+(forces.y*vely))*2/resolution;
+    // CP += ((forces.y*vely))*2/resolution;
     CL += forces.y / resolution * 2;
-    Eta=CT*2*resolution/CP;
-    print("CT"+(CT/count));
+    Eta=CT/CP;
+    print("CP"+(forces.y*vely)+"forces.y"+forces.y+"vely"+vely);
   }
   //Sp = SparsePressure(test);
   //dat.addData(test.t, test.foil.pressForce(test.flow.p), test.foil, test.flow.p);
