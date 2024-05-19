@@ -18,16 +18,16 @@ def optIGD(mymodel,mylikelihood,num_task=-2,testmode="test_WFG",train_x=[]):
     model.eval()
     likelihood.eval()
     # # Create an instance of the problem with the observed predictions
-    if testmode == "experiment":
+    if testmode == "CFD":
         problem = MyProblem(num_task,testmode,constr=1,n_var=train_x.shape[1])
     else:
-        problem = MyProblem(num_task, testmode, constr=0)
+        problem = MyProblem(num_task, testmode, constr=0,n_var=train_x.shape[1])
     # # Define the reference directions for the Pareto front
     from pymoo.util.ref_dirs import get_reference_directions
     ref_dirs = get_reference_directions("das-dennis", 2, n_partitions=12)
-    pop = Population.new("X", np.concatenate((train_x[:70, :].numpy(), train_x[-30:, :].numpy())))
+    pop = Population.new("X", np.concatenate((train_x[:70, :].numpy(), train_x[-230:, :].numpy())))
     # Create an instance of the NSGA-II algorithm
-    algorithm = NSGA2(pop_size=200, eliminate_duplicates=True, sampling=pop)
+    algorithm = NSGA2(pop_size=400, eliminate_duplicates=True, sampling=pop)
     # Minimize the problem using the algorithm
     res = minimize(problem,
                    algorithm,
@@ -75,7 +75,7 @@ def optIGD(mymodel,mylikelihood,num_task=-2,testmode="test_WFG",train_x=[]):
     X = pf.get("X")
     F = -pf.get("F")
     # Create a pandas dataframe with the decision variables and objective values
-    df = pd.DataFrame(np.hstack([X, F]), columns=["st",	"ad","theta","phi","Re","ct","cl"])
+    df = pd.DataFrame(np.hstack([X, F]))
     # Save the dataframe to a csv file
     df.to_csv("pareto_front.csv", index=False)
 
@@ -125,6 +125,6 @@ class MyProblem(Problem):
 
         N=np.array([observed_pred_yHC,observed_pred_yHE]).T
         out["F"] =N
-        if self.testmode=="experiment":
+        if self.testmode=="CFD":
             N1=-N[:, 1]-0.97
             out["G"] = [N[:, 0]]         #.reshape(-1, 3, 1)

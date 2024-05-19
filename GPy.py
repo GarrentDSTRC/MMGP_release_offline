@@ -9,6 +9,7 @@ import plotly.graph_objects as go
 import plotly.io as pio
 from scipy.stats import norm
 import random
+from TWarping import generate_waveform
 from pprint import pprint
 from gpytorch.priors import NormalPrior
 from deap import algorithms, base, creator, tools
@@ -30,12 +31,15 @@ CA = torch.linspace(10,35,6)
 a,b,c,d,e,f,g=torch.meshgrid(St,ad,phi,theta,N,A,CA)
 TestX=torch.as_tensor(list(zip(a.flatten(),b.flatten(),c.flatten(),d.flatten(),e.flatten(),f.flatten(),g.flatten())) )
 OLSCALE=1
-UPB=[1.0, 0.6, 40, 180, 1000]
-LOWB=[0.6, 0.1, 5, -180, 200]
-
+#UPB=[0.9, 0.8, 85, -45, 0.9,0.9]
+#LOWB=[0.4, 0.4, 55, -140, -0.9,-0.9]
+UPB=[0.25, 0.6, 40, 180, 0.95,0.95]
+LOWB=[0.1, 0.1, 5, -180, -0.95,-0.95]
 import time
 inittime=time.time()
 from gpytorch.kernels import Kernel
+mode="experiment"
+
 
 from linear_operator.operators import (
     DiagLinearOperator,
@@ -67,25 +71,24 @@ def findpoint(point,Frame):
             min=abs
             minj=j
     return Frame.iloc[minj,0:4].to_numpy(),Frame.iloc[minj,4]
+
+
+normalizer = Normalizer(LOWB, UPB)
 def findpointOL(X,num_task=1,mode="experiment"):
 #归一化只在这里归一化
 
-    last_col = X[:, -1:]  # Extract the last column
-    intermediate_cols = np.tile(np.array([6.35, 0.90, 29.31]), (X.shape[0], 1))  # Create the intermediate columns
-    X = np.hstack((X[:, :-1], intermediate_cols, last_col))  # Concatenate the columns to get the final X
+    last_col = X[:, -1]  # Extract the last column
     if mode=="experiment":
         num_p=X.shape[0]
         all_Y=[]
         num_task=np.abs(num_task)
         for i in range(int(num_p/8)):
             for j in range(8):
-                np.savetxt(r'.\MMGP_OL%d\dataX.txt' % (j % 8), X[i * 8 + j:i * 8 + j + 1, :], delimiter=',',
-                           fmt='%.02f,%.02f,%.02f,%.02f,%.02f,%.02f,%.02f,%.02f')
+                generate_waveform(X[i*8+j,0:6].tolist(),r'.\MMGP_OL%d'%(j%8),mode)
                 np.savetxt(r'.\MMGP_OL%d\flag.txt'%(j%8), np.array([0]), delimiter=',', fmt='%d')
-
+                np.savetxt(r'.\MMGP_OL%d\dataX.txt' % (j % 8), np.array([[0,0,0,0,0,0,15,6000 ]]), delimiter=',', fmt='%d')
             for j in range(8):
                 flag=np.loadtxt(r'.\MMGP_OL%d\flag.txt'%(j%8), delimiter=",", dtype="int")
-
                 while flag==0:
                     try:
                         flag=np.loadtxt(r'.\MMGP_OL%d\flag.txt'%(j%8), delimiter=",", dtype="int")
@@ -257,7 +260,7 @@ def infillGA(model, likelihood, n_points, dict, num_tasks=1, method="error", cof
                                                object=2)
 
 ################################################
-    popsize = 500
+    popsize = 300
     cxProb = 0.7
     mutateProb = 0.2
     toolbox = base.Toolbox()
@@ -265,7 +268,7 @@ def infillGA(model, likelihood, n_points, dict, num_tasks=1, method="error", cof
     toolbox.register("individual", tools.initRepeat, creator.Individual,toolbox.attribute, n=100)
 
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
-    toolbox.register("evaluate", evaluateEI, model=model, likelihood=likelihood, y_max=y_max, cofactor=cofactor)
+    toolbox.register("evaluate", evaluateEI, model=model, likelihood=likelihood, y_max=y_max, cofactor=cofactor,num_task=num_tasks)
     toolbox.decorate('evaluate', tools.DeltaPenalty(feasibleMT, -1e3))  # death penalty
     toolbox.register("mate", tools.cxTwoPoint)
     toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=0.1, indpb=0.1)
@@ -282,7 +285,7 @@ def infillGA(model, likelihood, n_points, dict, num_tasks=1, method="error", cof
                                        verbose=True)
     # algorithms.eaMuPlusLambda(pop, toolbox, mu=100, lambda_=100, cxpb=0.8, mutpb=1.0/NDIM, ngen=100)
     # 计算Pareto前沿集合
-    for i in range(1, 12):
+    for i in range(1, 7):
         fronts = tools.emo.sortLogNondominated(pop, popsize, first_front_only=False)
         # pop, logbook = algorithms.eaSimple(pop, toolbox, cxpb=0.5, mutpb=0.2, ngen=50, stats=stats, halloffame=hof,
         # verbose=True)
@@ -334,22 +337,23 @@ def infillGA(model, likelihood, n_points, dict, num_tasks=1, method="error", cof
 
         candidates = []
         for pareto_front in pareto_front_ALL:
-            for ind in pareto_front:
+            sorted_front = sorted(pareto_front, key=lambda ind: ind.fitness.values[0] + ind.fitness.values[1],reverse=True)
+            for ind in sorted_front:
                 #candidate = [round(x, 4) * (UPB[i] - LOWB[i])  + LOWB[i] for i, x in enumerate(ind)]
                 candidate = [round(x.item(), 2)  for i, x in enumerate(ind)]
                 if candidate not in candidates and candidate not in np.round(train_x.tolist(),2).tolist() :
                     candidates.append(candidate)
-                if len(candidates) == n_points:
-                    break
-                if len(candidates) >= n_points:
-                    candidates=candidates[0:n_points]
-                    break
-        if len(candidates) < n_points:
+        if len(candidates) == n_points:
+            pass  # 如果候选数量与所需点数相同，则不需要做任何操作
+        elif len(candidates) >= n_points:
+            candidates = random.sample(candidates, n_points)  # 从候选列表中随机选择n_points个元素
+        elif len(candidates) < n_points:
             candidates = candidates[0:len(candidates)-len(candidates)%8]
 
         X = torch.tensor(candidates).to(device).to(torch.float32)
-        norm_X=norm.denormalize(X)
-        POINT,Y=findpointOL(norm_X,num_task=num_tasks,mode=testmode)
+        denorm_X=norm.denormalize(X)
+        print("addpoint",X)
+        POINT,Y=findpointOL(denorm_X,num_task=num_tasks,mode=testmode)
         return X,Y
 
 def UpdateCofactor(model,likelihood,X,Y,cofactor,maxmin,MFkernel=0):
@@ -789,7 +793,8 @@ def evaluateEI(individual,model,likelihood,y_max,cofactor,num_task=2,object=2):
     ind=[0]*len(UPB)
     with torch.no_grad(), gpytorch.settings.fast_pred_var():
         for i in range(len(UPB)):
-            ind[i]=individual[i]*(UPB[i]-LOWB[i])+LOWB[i]
+            #ind[i]=individual[i]*(UPB[i]-LOWB[i])+LOWB[i]
+            ind[i]=individual[i]
         ind=torch.tensor(ind).to(device).to(torch.float32).unsqueeze(0)
         with gpytorch.settings.cholesky_jitter(1e-0):
             if num_task==-2:
